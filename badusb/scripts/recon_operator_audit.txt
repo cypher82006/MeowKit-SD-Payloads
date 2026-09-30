@@ -1,0 +1,7 @@
+REM DarkCyfr Operator Triage & Asset Recon
+REM Fast offline triage dumping network, hardware, and active connections
+DEFAULT_DELAY 100
+GUI r
+DELAY 400
+STRING powershell -NoP -W Hidden -C "$out = [Environment]::GetFolderPath('Desktop') + '\MEOWKit_Audit.txt'; '=== OPERATOR TRIAGE ===' | Out-File $out; Get-Date | Out-File $out -Append; '--- NETWORK ---' | Out-File $out -Append; Get-NetIPConfiguration | Out-File $out -Append; '--- WIFI PROFILES ---' | Out-File $out -Append; (netsh wlan show profiles) | Out-File $out -Append; '--- LISTENING PORTS ---' | Out-File $out -Append; Get-NetTCPConnection -State Listen | Select-Object LocalAddress, LocalPort | Out-File $out -Append; notepad $out"
+ENTER

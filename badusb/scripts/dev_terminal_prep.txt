@@ -1,0 +1,7 @@
+REM Developer Terminal Prep Utility
+REM Launches Windows Terminal maximized, checks git branch and system status
+DEFAULT_DELAY 100
+GUI r
+DELAY 400
+STRING wt -M powershell -NoExit -Command "Write-Host '=== DEV WORKSPACE ONLINE ===' -ForegroundColor Green; git status 2>$null; if ($LASTEXITCODE -ne 0) { Write-Host 'Not a git directory.' -ForegroundColor DarkYellow }"
+ENTER

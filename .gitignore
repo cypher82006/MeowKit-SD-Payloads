@@ -1,0 +1,19 @@
+# Private network credentials
+wifi.cfg
+*.cfg
+!wifi.cfg.example
+
+# Operational logs & captured data
+wardrive.csv
+*.csv
+*.pcap
+*.cap
+*.wav
+*.log
+logs/
+recordings/
+pcaps/
+
+# Operating system files
+.DS_Store
+Thumbs.db

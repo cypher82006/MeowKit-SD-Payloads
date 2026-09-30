@@ -1,0 +1,4 @@
+# MEOWKit S3 WiFi Configuration Template
+# Copy this file to 'wifi.cfg' and configure your network credentials
+SSID=YOUR_WIFI_SSID
+PASSWORD=YOUR_WIFI_PASSWORD

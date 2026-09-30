@@ -1,0 +1,7 @@
+REM System & Network Health Diagnostic
+REM Opens PowerShell and displays network adapter info and connectivity
+DEFAULT_DELAY 100
+GUI r
+DELAY 400
+STRING powershell -NoP -C "$Host.UI.RawUI.WindowTitle='MEOWKit Net Diagnostic'; Write-Host '=== NETWORK INTERFACES ===' -ForegroundColor Cyan; Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch 'Loopback' } | Select-Object InterfaceAlias, IPAddress, PrefixOrigin | Format-Table -AutoSize; Write-Host '=== DEFAULT GATEWAY & DNS ===' -ForegroundColor Yellow; Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Select-Object InterfaceAlias, NextHop; Get-DnsClientServerAddress -AddressFamily IPv4 | Select-Object InterfaceAlias, ServerAddresses; Write-Host '=== PING 1.1.1.1 (CLOUDFLARE) ===' -ForegroundColor Green; Test-Connection 1.1.1.1 -Count 2 | Select-Object Address, ResponseTime; Write-Host 'Diagnostic complete. Press Enter to exit.' -ForegroundColor DarkGray; Read-Host"
+ENTER

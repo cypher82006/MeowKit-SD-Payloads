@@ -1,0 +1,4 @@
+REM Lock Windows Screen
+REM Simple demo - just locks the screen
+DELAY 500
+GUI l

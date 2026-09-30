@@ -1,0 +1,5 @@
+REM Presentation Start Utility
+REM Starts presentation mode in PowerPoint, Google Slides, or PDF Viewer
+DEFAULT_DELAY 100
+F5
+DELAY 300
