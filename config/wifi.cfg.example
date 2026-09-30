@@ -1,0 +1,6 @@
+# ========================================================
+# MEOWKit S3 // Global Wi-Fi Network Configuration
+# Used by: Homelab Pulse, Network Triage, Walkie P2P
+# ========================================================
+SSID=YOUR_WIFI_SSID
+PASSWORD=YOUR_WIFI_PASSWORD

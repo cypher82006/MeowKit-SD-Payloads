@@ -2,6 +2,7 @@
 -- MEOWKit S3 // Tactical Network Triage & Lab Health Auditor
 -- Author: DarkCyfr
 -- Measures latency, HTTP response times, and Wi-Fi link quality
+-- Configuration: /config/triage.cfg and /config/wifi.cfg
 -- ══════════════════════════════════════════════════════════════
 
 local COL_BG     = 0x10A2
@@ -21,29 +22,82 @@ local current_ip = "0.0.0.0"
 local current_rssi = 0
 local avg_ping = 0
 
--- Target Wi-Fi and probe configuration
-local TARGET_SSID = "YOUR_SSID"
-local TARGET_PASS = "YOUR_PASSWORD"
-local TARGET_HOST = "http://1.1.1.1"
+-- ── Configuration Loader ──
+local function load_triage_config()
+    local cfg = {
+        probe_url = "http://1.1.1.1",
+        interval_ms = 3000,
+        timeout_ms = 3000
+    }
+    local content = (meow.read_file and meow.read_file("/config/triage.cfg")) or
+                    (meow.read_file and meow.read_file("/triage.cfg")) or
+                    (meow.read_file and meow.read_file("/config/triage.cfg.example"))
+    if content then
+        for line in content:gmatch("[^\r\n]+") do
+            line = line:match("^%s*(.-)%s*$")
+            if line ~= "" and not line:match("^[#;]") and not line:match("^%-%-") then
+                local k, v = line:match("^([%w_%-]+)%s*=%s*(.*)$")
+                if k and v then
+                    k = k:upper()
+                    if k == "PROBE_URL" or k == "TARGET_HOST" then
+                        cfg.probe_url = v
+                    elseif k == "INTERVAL_MS" then
+                        cfg.interval_ms = tonumber(v) or 3000
+                    elseif k == "TIMEOUT_MS" then
+                        cfg.timeout_ms = tonumber(v) or 3000
+                    end
+                end
+            end
+        end
+    else
+        if meow.write_file then
+            local tpl = "# NETWORK TRIAGE & LATENCY AUDITOR CONFIG\n" ..
+                        "# Target HTTP/HTTPS endpoint to probe\n" ..
+                        "PROBE_URL=http://1.1.1.1\n" ..
+                        "# Probe interval in milliseconds\n" ..
+                        "INTERVAL_MS=3000\n" ..
+                        "# HTTP probe timeout in milliseconds\n" ..
+                        "TIMEOUT_MS=3000\n"
+            meow.write_file("/config/triage.cfg", tpl)
+        end
+    end
+    return cfg
+end
+
+-- ── Wi-Fi Auto-Connector ──
+local function ensure_wifi()
+    local stat = meow.wifi_status()
+    if stat and stat.connected then return stat end
+
+    local content = (meow.read_file and meow.read_file("/config/wifi.cfg")) or
+                    (meow.read_file and meow.read_file("/wifi.cfg"))
+    if content then
+        local ssid = content:match("SSID=([^\r\n]+)")
+        local pass = content:match("PASSWORD=([^\r\n]+)")
+        if ssid and pass and ssid ~= "YOUR_SSID" then
+            current_status = "CONNECTING WIFI..."
+            meow.text(12, 100, "Arming Wi-Fi Link: " .. ssid, COL_ORANGE)
+            meow.wifi_connect(ssid, pass)
+            meow.delay(1500)
+            return meow.wifi_status()
+        end
+    end
+    return stat
+end
+
+local config = load_triage_config()
 
 function do_triage()
-    local stat = meow.wifi_status()
-    if not stat.connected then
-        current_status = "CONNECTING WIFI..."
-        meow.text(12, 100, "Arming Wi-Fi Link...", COL_ORANGE)
-        meow.wifi_connect(TARGET_SSID, TARGET_PASS)
-        meow.delay(2000)
-        stat = meow.wifi_status()
-    end
+    local stat = ensure_wifi()
 
-    if stat.connected then
+    if stat and stat.connected then
         current_ip = stat.ip
         current_rssi = stat.rssi
         current_status = "LINK ACTIVE"
 
         -- HTTP Probe Latency
         local t0 = meow.millis()
-        local code, body = meow.http_get(TARGET_HOST, 3000)
+        local code, body = meow.http_get(config.probe_url, config.timeout_ms)
         local elapsed = meow.millis() - t0
 
         if code and code > 0 then
@@ -78,11 +132,11 @@ function draw_screen()
     meow.rect(10, 30, 300, 48, COL_MUTED, false)
     meow.text(18, 36, "IP: " .. current_ip, COL_WHITE)
     meow.text(18, 54, "STATE: " .. current_status, COL_CYAN)
-    meow.text(210, 36, string.format("RSSI: %d dBm", current_rssi), COL_MUTED)
-    meow.text(210, 54, string.format("AVG: %d ms", avg_ping), COL_LIME)
+    meow.text(205, 36, string.format("RSSI: %d dBm", current_rssi), COL_MUTED)
+    meow.text(205, 54, string.format("AVG: %d ms", avg_ping), COL_LIME)
 
     -- Latency Histogram
-    meow.text(12, 86, "LATENCY HISTOGRAM (24 PINGS)", COL_MUTED)
+    meow.text(12, 86, string.format("PROBE: %s", config.probe_url), COL_MUTED)
     meow.rect(10, 102, 300, 95, COL_PANEL, true)
     meow.rect(10, 102, 300, 95, COL_MUTED, false)
 
@@ -125,9 +179,9 @@ function on_loop()
         meow.delay(300)
     end
 
-    -- Background Ping Interval (every 3 seconds)
+    -- Background Ping Interval
     local now = meow.millis()
-    if now - last_check >= 3000 then
+    if now - last_check >= config.interval_ms then
         last_check = now
         do_triage()
         draw_screen()

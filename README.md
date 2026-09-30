@@ -22,12 +22,44 @@ SD_CARD_ROOT/
 ├── badusb/               # Keystroke injection scripts & keyboard layout maps (.kl)
 │   ├── layouts/          # International keyboard layout tables
 │   └── scripts/          # DuckyScript payloads (Windows, macOS, Linux, ChromeOS, Android, iOS)
+├── config/               # Universal configuration files (IPs, targets, credentials, settings)
+│   ├── wifi.cfg.example  # Global Wi-Fi SSID and passkey template
+│   ├── homelab.cfg.example # Monitored hosts, IPs, and ports
+│   ├── triage.cfg.example  # HTTP latency probe URL, intervals, timeouts
+│   ├── subnets.cfg.example # Custom CIDR IP presets for subnet calculator
+│   ├── vault.cfg.example   # Offline secret fragments & custom D-Pad PIN
+│   ├── walkie.cfg.example  # P2P callsign, UDP port, broadcast address
+│   ├── wardrive.cfg.example# Scan intervals, CSV path, auto-decloak toggle
+│   ├── radar.cfg.example   # Sweep speed, live RF scan, RSSI thresholds
+│   ├── hud.cfg.example     # Callsign, unit ID, accent color theme
+│   ├── alarm.cfg.example   # Motion sensitivity, arm delay, siren toggle
+│   └── recorder.cfg.example# Audio duration, output directory, prefix
 ├── infrared/             # Universal IR remote dictionaries (.ir)
 │   └── universal/        # AC, Audio, Projectors, TVs, Fans, LEDs, Displays
 ├── music/                # Standalone audio files for the internal player
-├── wifi.cfg              # Auto-join Wi-Fi configuration credentials
+├── wifi.cfg              # Active Wi-Fi credentials (gitignored for opsec)
 └── recordings/           # Wiretap audio recordings (generated automatically)
 ```
+
+---
+
+## ⚙️ Universal Configuration Architecture (`/config/`)
+
+All apps are designed to be **100% universal and customizable without editing Lua code**. Simply drop or edit `.cfg` files in the `/config/` directory on your MicroSD card. If any config file is omitted, the apps will automatically run with safe defaults and generate documented templates on the SD card:
+
+| Config File | Target App | Key Settings & Parameters |
+|---|---|---|
+| [`config/wifi.cfg.example`](config/wifi.cfg.example) | Global (All Net Apps) | `SSID`, `PASSWORD` for automatic connection. |
+| [`config/homelab.cfg.example`](config/homelab.cfg.example) | `homelab_pulse.lua` | Custom list of target nodes (`NAME,IP,PORT`). Supports unlimited servers with D-Pad scroll! |
+| [`config/triage.cfg.example`](config/triage.cfg.example) | `network_triage.lua` | `PROBE_URL`, `INTERVAL_MS`, `TIMEOUT_MS`. |
+| [`config/subnets.cfg.example`](config/subnets.cfg.example) | `subnet_calc.lua` | Custom CIDR presets (`NAME,IP,CIDR`). |
+| [`config/vault.cfg.example`](config/vault.cfg.example) | `secure_vault.lua` | Custom D-Pad unlock sequence (`UNLOCK_SEQUENCE=UP,UP,DOWN,DOWN`) and secret fragments (`TAG=SECRET`). |
+| [`config/walkie.cfg.example`](config/walkie.cfg.example) | `walkie_terminal.lua` | `CALLSIGN`, `UDP_PORT`, `BROADCAST_IP`, `BEACON_INTERVAL_MS`, and `QUICK_MESSAGES`. |
+| [`config/wardrive.cfg.example`](config/wardrive.cfg.example) | `wifi_wardrive.lua` | `SCAN_INTERVAL_MS`, `LOG_FILE`, `AUTO_DECLOAK`, `MIN_RSSI`. |
+| [`config/radar.cfg.example`](config/radar.cfg.example) | `radar_recon.lua` | `SWEEP_SPEED`, `REAL_RF_SCAN` (maps real Wi-Fi APs onto radar), `SCAN_INTERVAL_MS`, `MIN_RSSI`. |
+| [`config/hud.cfg.example`](config/hud.cfg.example) | `cyber_hud.lua` | `CALLSIGN`, `UNIT_ID`, `THEME` (`CYAN`, `LIME`, `ORANGE`, `RED`). |
+| [`config/alarm.cfg.example`](config/alarm.cfg.example) | `tamper_alarm.lua` | `ARM_DELAY_SEC`, `SENSITIVITY` (`HIGH`, `MED`, `LOW`), `SIREN_ENABLED`. |
+| [`config/recorder.cfg.example`](config/recorder.cfg.example) | `audio_recorder.lua` | `DEFAULT_DURATION_SEC`, `OUTPUT_DIR`, `FILE_PREFIX`. |
 
 ---
 

@@ -1,0 +1,12 @@
+# ========================================================
+# MEOWKit S3 // Homelab Pulse Monitor Target Inventory
+# Used by: /apps/homelab_pulse.lua
+# Format: NAME,IP,PORT
+# Add as many nodes as desired. D-Pad UP/DOWN scrolls the HUD.
+# ========================================================
+GATEWAY.LAB,192.168.1.1,80
+CORE-SRV.LAB,192.168.1.10,80
+OPS-HOST.LAB,192.168.1.20,80
+STORAGE.LAB,192.168.1.50,5000
+# DNS-PIHOLE,192.168.1.5,80
+# PROXMOX,192.168.1.100,8006

@@ -2,6 +2,7 @@
 -- MEOWKit S3 Dynamic App: Cyber HUD (High-Performance Tactical Edition)
 -- Operator: DarkCyfr
 -- Dynamic Lua 5.4 Application loaded from MicroSD (/apps/cyber_hud.lua)
+-- Configuration: /config/hud.cfg (or /hud.cfg)
 -- ==============================================================================
 
 local COL_BG     = 0x10A2
@@ -13,6 +14,56 @@ local COL_CYAN   = 0x07FF
 local COL_LIME   = 0xBEE7
 local COL_ORANGE = 0xFD20
 local COL_RED    = 0xF800
+
+-- ── Configuration Loader ──
+local function load_hud_config()
+    local cfg = {
+        callsign = "OPERATOR",
+        unit_id = "MEOW-S3 HUD",
+        accent_col = COL_CYAN
+    }
+
+    local content = (meow.read_file and meow.read_file("/config/hud.cfg")) or
+                    (meow.read_file and meow.read_file("/hud.cfg")) or
+                    (meow.read_file and meow.read_file("/config/hud.cfg.example"))
+
+    if content then
+        for line in content:gmatch("[^\r\n]+") do
+            line = line:match("^%s*(.-)%s*$")
+            if line ~= "" and not line:match("^[#;]") and not line:match("^%-%-") then
+                local k, v = line:match("^([%w_%-]+)%s*=%s*(.*)$")
+                if k and v then
+                    k = k:upper()
+                    if k == "CALLSIGN" or k == "OPERATOR" then
+                        cfg.callsign = v
+                    elseif k == "UNIT_ID" or k == "UNIT" then
+                        cfg.unit_id = v
+                    elseif k == "THEME" or k == "COLOR" then
+                        local t = v:upper()
+                        if t == "LIME" or t == "GREEN" then cfg.accent_col = COL_LIME
+                        elseif t == "ORANGE" then cfg.accent_col = COL_ORANGE
+                        elseif t == "RED" then cfg.accent_col = COL_RED
+                        else cfg.accent_col = COL_CYAN end
+                    end
+                end
+            end
+        end
+    else
+        if meow.write_file then
+            local tpl = "# CYBER HUD DASHBOARD CONFIGURATION\n" ..
+                        "# Callsign displayed in top banner\n" ..
+                        "CALLSIGN=OPERATOR\n" ..
+                        "# Unit Identifier\n" ..
+                        "UNIT_ID=MEOW-S3 HUD\n" ..
+                        "# Accent Theme Color (CYAN, LIME, ORANGE, RED)\n" ..
+                        "THEME=CYAN\n"
+            meow.write_file("/config/hud.cfg", tpl)
+        end
+    end
+    return cfg
+end
+
+local config = load_hud_config()
 
 local frame = 0
 local last_beep = 0
@@ -32,8 +83,8 @@ local function init_hud()
 
     -- Header Panel
     meow.rect(10, 10, 300, 35, COL_PANEL, true)
-    meow.rect(10, 10, 300, 35, COL_CYAN, false)
-    meow.text(20, 20, "DARKCYFR // MEOW-S3 HUD", COL_CYAN)
+    meow.rect(10, 10, 300, 35, config.accent_col, false)
+    meow.text(20, 20, string.format("%s // %s", config.callsign, config.unit_id), config.accent_col)
 
     -- IMU Telemetry Panel
     meow.rect(10, 52, 145, 115, COL_PANEL, true)
@@ -63,7 +114,7 @@ function on_loop()
     local now = meow.millis()
     local uptime_sec = math.floor(now / 1000)
 
-    -- ── 1. Battery & Uptime (1Hz update to save SPI / I2C bandwidth) ──
+    -- ── 1. Battery & Uptime (1Hz update) ──
     if uptime_sec ~= last_sec then
         last_sec = uptime_sec
         local vbat, pct = meow.bat()
@@ -78,7 +129,6 @@ function on_loop()
     -- ── 2. IMU Telemetry (Differential Updates) ──
     local ax, ay, az = meow.imu()
 
-    -- Only clear the numeric values instead of the entire box
     meow.rect(36, 78,  60, 18, COL_PANEL, true)
     meow.rect(36, 98,  60, 18, COL_PANEL, true)
     meow.rect(36, 118, 60, 18, COL_PANEL, true)
@@ -96,13 +146,13 @@ function on_loop()
 
     if ox ~= prev_ox or oy ~= prev_oy then
         meow.circle(cx + prev_ox, cy + prev_oy, 4, COL_PANEL, true)
-        meow.circle(cx, cy, 18, COL_MUTED, false) -- re-stroke ring if clipped
-        meow.circle(cx + ox, cy + oy, 4, COL_CYAN, true)
+        meow.circle(cx, cy, 18, COL_MUTED, false)
+        meow.circle(cx + ox, cy + oy, 4, config.accent_col, true)
         prev_ox = ox
         prev_oy = oy
     end
 
-    -- ── 3. IO & Key Matrix (Event-driven text redraw) ──
+    -- ── 3. IO & Key Matrix ──
     local btnA = meow.btn("A") or meow.btn(0)
     local btnB = meow.btn("B") or meow.btn(1)
     local btnUp = meow.btn("UP") or meow.btn(2)
@@ -128,8 +178,8 @@ function on_loop()
     if dpad ~= prev_dpad then
         prev_dpad = dpad
         meow.rect(173, 118, 130, 20, COL_PANEL, true)
-        meow.text(173, 120, dpad and "DPAD: ACTIVE" or "DPAD: IDLE", dpad and COL_CYAN or COL_MUTED)
+        meow.text(173, 120, dpad and "DPAD: ACTIVE" or "DPAD: IDLE", dpad and config.accent_col or COL_MUTED)
     end
 
-    meow.delay(30) -- ~33 FPS fluid rendering, zero bus congestion
+    meow.delay(30)
 end

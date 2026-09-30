@@ -1,0 +1,15 @@
+# ========================================================
+# MEOWKit S3 // Tactical Radar Recon Configuration
+# Used by: /apps/radar_recon.lua
+# ========================================================
+# Sweep rotation speed in degrees per frame
+SWEEP_SPEED=4
+
+# Live RF scan: map real nearby Wi-Fi APs onto radar screen
+REAL_RF_SCAN=true
+
+# Wi-Fi rescan interval in milliseconds
+SCAN_INTERVAL_MS=12000
+
+# Minimum RSSI threshold to display on radar
+MIN_RSSI=-90

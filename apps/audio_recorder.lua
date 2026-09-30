@@ -2,6 +2,7 @@
 --  MEOWKIT // ES7210 TACTICAL AUDIO RECORDER & WIRETAP
 --  Hardware: ES7210 24-bit ADC + ZTS6216 MEMS Mic + SDMMC
 --  Author: DarkCyfr Tactical Suite
+--  Configuration: /config/recorder.cfg (or /recorder.cfg)
 -- ========================================================
 
 local COL_BG      = 0x10A2
@@ -14,8 +15,57 @@ local COL_RED     = 0xF800
 local COL_WHITE   = 0xFFFF
 local COL_MUTED   = 0x8410
 
+-- ── Configuration Loader ──
+local function load_recorder_config()
+    local cfg = {
+        default_dur = 10,
+        out_dir = "/recordings",
+        prefix = "wiretap"
+    }
+
+    local content = (meow.read_file and meow.read_file("/config/recorder.cfg")) or
+                    (meow.read_file and meow.read_file("/recorder.cfg")) or
+                    (meow.read_file and meow.read_file("/config/recorder.cfg.example"))
+
+    if content then
+        for line in content:gmatch("[^\r\n]+") do
+            line = line:match("^%s*(.-)%s*$")
+            if line ~= "" and not line:match("^[#;]") and not line:match("^%-%-") then
+                local k, v = line:match("^([%w_%-]+)%s*=%s*(.*)$")
+                if k and v then
+                    k = k:upper()
+                    if k == "DEFAULT_DURATION_SEC" or k == "DURATION" then
+                        cfg.default_dur = tonumber(v) or 10
+                    elseif k == "OUTPUT_DIR" then
+                        cfg.out_dir = v
+                    elseif k == "FILE_PREFIX" or k == "PREFIX" then
+                        cfg.prefix = v
+                    end
+                end
+            end
+        end
+    else
+        if meow.write_file then
+            local tpl = "# ES7210 TACTICAL AUDIO RECORDER CONFIGURATION\n" ..
+                        "# Default recording duration in seconds\n" ..
+                        "DEFAULT_DURATION_SEC=10\n" ..
+                        "# Output directory on MicroSD card\n" ..
+                        "OUTPUT_DIR=/recordings\n" ..
+                        "# Filename prefix\n" ..
+                        "FILE_PREFIX=wiretap\n"
+            meow.write_file("/config/recorder.cfg", tpl)
+        end
+    end
+    return cfg
+end
+
+local config = load_recorder_config()
+
 local rec_durations = { 5, 10, 15, 30, 60 }
-local dur_idx = 2 -- Default 10 seconds
+local dur_idx = 2
+for i, d in ipairs(rec_durations) do
+    if d == config.default_dur then dur_idx = i break end
+end
 
 local is_recording = false
 local rec_counter = 1
@@ -76,13 +126,11 @@ function on_loop()
 
     local now = meow.millis()
 
-    -- ── Check Buttons (Supporting both String and Number bindings) ──
     local btnA  = meow.btn("A")    or meow.btn(0)
     local btnB  = meow.btn("B")    or meow.btn(1)
     local btnUp = meow.btn("UP")   or meow.btn(2)
     local btnDn = meow.btn("DOWN") or meow.btn(3)
 
-    -- Hold B to exit handled by host, but keep LED off on exit
     if btnB then
         if b_held_start == 0 then
             b_held_start = now
@@ -99,30 +147,29 @@ function on_loop()
         if btnA then
             is_recording = true
             meow.tone(1800, 60)
-            meow.led(255, 0, 0) -- RED LED on during active recording
+            meow.led(255, 0, 0)
 
-            -- Status update: RECORDING
             meow.rect(215, 4, 100, 18, COL_PANEL, true)
             meow.text(215, 4, "[RECORDING]", COL_RED)
 
             local dur = rec_durations[dur_idx]
-            local filepath = string.format("/recordings/rec_%03d.wav", rec_counter)
+            local filepath = string.format("%s/%s_%03d.wav", config.out_dir, config.prefix, rec_counter)
             rec_counter = rec_counter + 1
 
             meow.rect(18, 178, 280, 30, COL_PANEL, true)
             meow.text(18, 178, "WRITING: " .. filepath, COL_ORANGE)
             meow.text(18, 192, string.format("CAPTURING %d SECONDS...", dur), COL_RED)
 
-            -- Perform actual I2S capture to SD card
             local ok, samples = meow.record_wav(filepath, dur)
 
-            -- Fallback to root directory if /recordings fails
+            -- Fallback to root directory if subdirectory fails
             if not ok then
-                filepath = string.format("/rec_%03d.wav", rec_counter - 1)
+                filepath = string.format("/%s_%03d.wav", config.prefix, rec_counter - 1)
                 ok, samples = meow.record_wav(filepath, dur)
             end
 
             meow.led(0, 0, 0)
+            is_recording = false
 
             meow.rect(215, 4, 100, 18, COL_PANEL, true)
             meow.text(220, 4, "[READY]", COL_CYAN)
@@ -130,48 +177,47 @@ function on_loop()
             meow.rect(18, 178, 280, 30, COL_PANEL, true)
             if ok then
                 last_recorded_file = filepath
-                last_recorded_bytes = math.floor(samples * 2 + 44)
+                last_recorded_bytes = dur * 16000 * 2
                 meow.tone(2400, 100)
                 meow.text(18, 178, "SAVED: " .. filepath, COL_LIME)
-                meow.text(18, 192, string.format("SIZE: %.1f KB (%d samples)", last_recorded_bytes / 1024.0, samples), COL_WHITE)
+                meow.text(18, 192, string.format("OK: %d KB | 16kHz WAV", math.floor(last_recorded_bytes / 1024)), COL_WHITE)
             else
-                last_recorded_file = "ERR: " .. tostring(samples)
-                meow.tone(500, 250)
+                meow.tone(440, 200)
                 meow.text(18, 178, "RECORDING FAILED", COL_RED)
-                meow.text(18, 192, tostring(samples), COL_ORANGE)
+                meow.text(18, 192, "ERR: SD OR I2S BUS BUSY", COL_ORANGE)
             end
+            meow.delay(200)
+        end
 
-            is_recording = false
-            meow.delay(300)
-            return
-
-        -- ── 2. Duration Selector (Up / Down) ──
-        elseif btnUp then
-            dur_idx = math.min(#rec_durations, dur_idx + 1)
-            meow.tone(1600, 30)
-            meow.rect(18, 100, 280, 18, COL_PANEL, true)
+        -- ── 2. Adjust Duration (Joystick UP / DOWN) ──
+        if btnUp then
+            dur_idx = dur_idx + 1
+            if dur_idx > #rec_durations then dur_idx = 1 end
+            meow.tone(1400, 30)
+            meow.rect(18, 100, 250, 18, COL_PANEL, true)
             meow.text(18, 100, string.format("-> [ %d SECONDS ]", rec_durations[dur_idx]), COL_LIME)
             meow.delay(180)
-
         elseif btnDn then
-            dur_idx = math.max(1, dur_idx - 1)
-            meow.tone(1400, 30)
-            meow.rect(18, 100, 280, 18, COL_PANEL, true)
+            dur_idx = dur_idx - 1
+            if dur_idx < 1 then dur_idx = #rec_durations end
+            meow.tone(1100, 30)
+            meow.rect(18, 100, 250, 18, COL_PANEL, true)
             meow.text(18, 100, string.format("-> [ %d SECONDS ]", rec_durations[dur_idx]), COL_LIME)
             meow.delay(180)
         end
 
-        -- ── 3. Live VU Meter sampling (~15 FPS) ──
-        if (now - last_vu_ms > 66) then
+        -- ── 3. Live VU Meter Refresh (15 Hz) ──
+        if now - last_vu_ms > 65 then
             last_vu_ms = now
-            local lvl = meow.mic_level() -- Returns 0 to 100
-            local bar_w = math.floor((lvl / 100.0) * 185)
-            if bar_w > 185 then bar_w = 185 end
+            local lvl = meow.mic_level() or 0
+            if lvl < 0 then lvl = 0 end
+            if lvl > 100 then lvl = 100 end
 
-            meow.rect(110, 138, 185, 14, COL_BG, true)
-            local bar_col = (lvl > 75) and COL_RED or ((lvl > 40) and COL_ORANGE or COL_LIME)
+            local bar_w = math.floor((lvl / 100.0) * 180)
+            meow.rect(112, 140, 180, 10, COL_BG, true)
             if bar_w > 0 then
-                meow.rect(110, 138, bar_w, 14, bar_col, true)
+                local col = (lvl > 75) and COL_RED or ((lvl > 45) and COL_ORANGE or COL_LIME)
+                meow.rect(112, 140, bar_w, 10, col, true)
             end
         end
     end

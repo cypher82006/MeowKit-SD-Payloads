@@ -1,0 +1,13 @@
+# ========================================================
+# MEOWKit S3 // Offline Fragment Vault Configuration
+# Used by: /apps/secure_vault.lua
+# ========================================================
+# Master Unlock Sequence (comma-separated keys: UP, DOWN, LEFT, RIGHT)
+UNLOCK_SEQUENCE=UP,UP,DOWN,DOWN
+
+# Secret Fragments: TAG=SECRET
+LAB_HYPERVISOR=root // [RESTRICTED_KEY_HERE]
+STORAGE_NAS=admin // volume1_secure_vault
+CORP_SERVER=administrator // id_ed25519
+GATEWAY_C2=c2.operator-node.lab:443
+TACTICAL_NET=SSID: FieldOps // 10.0.0.1

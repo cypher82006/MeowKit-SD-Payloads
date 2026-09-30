@@ -1,0 +1,12 @@
+# ========================================================
+# MEOWKit S3 // ES7210 Tactical Audio Recorder Configuration
+# Used by: /apps/audio_recorder.lua
+# ========================================================
+# Default recording duration in seconds
+DEFAULT_DURATION_SEC=10
+
+# Output directory on MicroSD card
+OUTPUT_DIR=/recordings
+
+# Filename prefix
+FILE_PREFIX=wiretap

@@ -1,7 +1,7 @@
-# Private network credentials
+# Private network credentials & user configs
 wifi.cfg
 *.cfg
-!wifi.cfg.example
+!*.cfg.example
 
 # Operational logs & captured data
 wardrive.csv

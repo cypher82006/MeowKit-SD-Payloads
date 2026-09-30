@@ -1,0 +1,12 @@
+# ========================================================
+# MEOWKit S3 // Sentinel Motion Tamper Alarm Configuration
+# Used by: /apps/tamper_alarm.lua
+# ========================================================
+# Countdown delay before arming in seconds
+ARM_DELAY_SEC=5
+
+# Default sensitivity profile: HIGH, MED, or LOW
+SENSITIVITY=MED
+
+# Siren speaker audio alert enabled
+SIREN_ENABLED=true

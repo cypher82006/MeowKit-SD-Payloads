@@ -1,0 +1,12 @@
+# ========================================================
+# MEOWKit S3 // Cyber HUD Tactical Dashboard Configuration
+# Used by: /apps/cyber_hud.lua
+# ========================================================
+# Callsign displayed in top banner
+CALLSIGN=DARKCYFR
+
+# Unit Identifier
+UNIT_ID=MEOW-S3 HUD
+
+# Accent Theme Color (CYAN, LIME, ORANGE, RED)
+THEME=CYAN

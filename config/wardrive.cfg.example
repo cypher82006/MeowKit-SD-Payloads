@@ -1,0 +1,15 @@
+# ========================================================
+# MEOWKit S3 // Tactical Wi-Fi Wardriver & Spectrum Recon
+# Used by: /apps/wifi_wardrive.lua
+# ========================================================
+# Scan interval in milliseconds
+SCAN_INTERVAL_MS=4000
+
+# Destination CSV log file on MicroSD
+LOG_FILE=/wardrive.csv
+
+# Automatically attempt promiscuous probe decloaking of hidden SSIDs
+AUTO_DECLOAK=true
+
+# Minimum RSSI threshold to log
+MIN_RSSI=-95

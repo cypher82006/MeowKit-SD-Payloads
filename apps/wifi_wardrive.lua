@@ -2,7 +2,8 @@
 -- MEOWKit S3 // Tactical Wi-Fi Wardriver & Spectrum Recon
 -- Author: DarkCyfr
 -- Features: 802.11 Sniffer, Auto-Decloaker for Hidden SSIDs,
---           CSV Wardrive Logger (/wardrive.csv), Real-Time HUD
+--           Direct CSV Wardrive Logger, Real-Time HUD
+-- Configuration: /config/wardrive.cfg (or /wardrive.cfg)
 -- ══════════════════════════════════════════════════════════════
 
 local COL_BG     = 0x10A2
@@ -14,33 +15,91 @@ local COL_RED    = 0xF800
 local COL_WHITE  = 0xFFFF
 local COL_MUTED  = 0x8410
 
+-- ── Configuration Loader ──
+local function load_wardrive_config()
+    local cfg = {
+        scan_interval = 4000,
+        log_file = "/wardrive.csv",
+        auto_decloak = true,
+        min_rssi = -95
+    }
+
+    local content = (meow.read_file and meow.read_file("/config/wardrive.cfg")) or
+                    (meow.read_file and meow.read_file("/wardrive.cfg")) or
+                    (meow.read_file and meow.read_file("/config/wardrive.cfg.example"))
+
+    if content then
+        for line in content:gmatch("[^\r\n]+") do
+            line = line:match("^%s*(.-)%s*$")
+            if line ~= "" and not line:match("^[#;]") and not line:match("^%-%-") then
+                local k, v = line:match("^([%w_%-]+)%s*=%s*(.*)$")
+                if k and v then
+                    k = k:upper()
+                    if k == "SCAN_INTERVAL_MS" or k == "SCAN_INTERVAL" then
+                        cfg.scan_interval = tonumber(v) or 4000
+                    elseif k == "LOG_FILE" then
+                        cfg.log_file = v
+                    elseif k == "AUTO_DECLOAK" then
+                        cfg.auto_decloak = (v:lower() == "true" or v == "1")
+                    elseif k == "MIN_RSSI" then
+                        cfg.min_rssi = tonumber(v) or -95
+                    end
+                end
+            end
+        end
+    else
+        if meow.write_file then
+            local tpl = "# TACTICAL WI-FI WARDRIVER & SPECTRUM RECON CONFIG\n" ..
+                        "# Scan interval in milliseconds\n" ..
+                        "SCAN_INTERVAL_MS=4000\n" ..
+                        "# Destination CSV log file on MicroSD\n" ..
+                        "LOG_FILE=/wardrive.csv\n" ..
+                        "# Automatically attempt promiscuous probe decloaking of hidden SSIDs\n" ..
+                        "AUTO_DECLOAK=true\n" ..
+                        "# Minimum RSSI threshold to log\n" ..
+                        "MIN_RSSI=-95\n"
+            meow.write_file("/config/wardrive.cfg", tpl)
+        end
+    end
+    return cfg
+end
+
+local config = load_wardrive_config()
+
 local ap_list = {}
 local total_logged = 0
 local total_decloaked = 0
 local last_scan = 0
-local scan_interval = 4000
 local scanning = false
-local log_file = "/wardrive.csv"
 local b_hold_start = 0
-
--- In-memory cache for decloaked BSSIDs (BSSID -> Real SSID)
 local decloaked_cache = {}
 
--- Common hidden network default names fallback dictionary
-local COMMON_SSIDS = {
-    "Home", "Guest", "Office", "Setup", "IoT", "Internal",
-    "Staff", "Secure", "Private", "Lab", "Camera", "Printer"
-}
+-- Safe file append helper
+local function append_record(path, line)
+    if meow.append_file then
+        return meow.append_file(path, line)
+    end
+    local prev = (meow.read_file and meow.read_file(path)) or ""
+    if meow.write_file then
+        return meow.write_file(path, prev .. line)
+    end
+    return false
+end
 
--- Init CSV header if not exists
-meow.write_file(log_file, "Timestamp_ms,BSSID,SSID,RSSI,Channel,Encrypted,Decloaked\n")
+-- Initialize CSV header if not exists
+local existing_csv = meow.read_file and meow.read_file(config.log_file)
+if not existing_csv or #existing_csv == 0 then
+    if meow.write_file then
+        meow.write_file(config.log_file, "Timestamp_ms,BSSID,SSID,RSSI,Channel,Encrypted,Decloaked\n")
+    end
+end
 
 function draw_hud()
     meow.clear(COL_BG)
 
     -- Top Header
     meow.rect(0, 0, 320, 24, COL_PANEL, true)
-    meow.text(8, 4, "[ WARDRIVE // AUTO-DECLOAK ]", COL_LIME)
+    meow.text(8, 4, "[ WARDRIVE // SPECTRUM RECON ]", COL_LIME)
     meow.text(230, 4, string.format("%d APs | %d *", #ap_list, total_decloaked), COL_CYAN)
 
     -- Subheader Stats
@@ -89,32 +148,28 @@ function draw_hud()
 
     -- Bottom Navigation Bar
     meow.rect(0, 216, 320, 24, COL_PANEL, true)
-    local status_txt = scanning and "SNIFFING & PROBING CLOAKED SSIDs..." or "[A] Scan  [Hold B] Exit"
+    local status_txt = scanning and "SNIFFING & PROBING SPECTRUM..." or "[A] Scan  [Hold B] Exit"
     meow.text(8, 220, status_txt, scanning and COL_ORANGE or COL_WHITE)
 end
 
 function do_scan()
     scanning = true
     draw_hud()
-    meow.led(0, 50, 50) -- Cyan LED indicates scanning
+    meow.led(0, 50, 50)
 
     local results = meow.wifi_scan()
     if results and #results > 0 then
-        -- Process raw scan results
         for _, ap in ipairs(results) do
             local is_hidden = (ap.hidden == true) or (#ap.ssid == 0) or (ap.ssid == "<HIDDEN>")
             ap.is_hidden = is_hidden
 
-            -- Check if we already cracked this BSSID
             if ap.bssid and decloaked_cache[ap.bssid] then
                 ap.ssid = decloaked_cache[ap.bssid]
                 ap.decloaked = true
                 ap.is_hidden = false
-            elseif is_hidden and ap.bssid then
-                -- ── AUTO-DECLOAK TRIGGER ──
-                -- If host firmware has meow.wifi_decloak, sniff 802.11 probe responses
+            elseif is_hidden and ap.bssid and config.auto_decloak then
                 if meow.wifi_decloak then
-                    meow.led(255, 120, 0) -- Orange LED = Decloaking active
+                    meow.led(255, 120, 0)
                     local revealed = meow.wifi_decloak(ap.bssid, ap.channel, 1200)
                     if revealed and #revealed > 0 then
                         ap.ssid = revealed
@@ -122,26 +177,27 @@ function do_scan()
                         ap.is_hidden = false
                         decloaked_cache[ap.bssid] = revealed
                         total_decloaked = total_decloaked + 1
-                        meow.tone(2800, 100) -- Tactical intercept alert
+                        meow.tone(2800, 100)
                     end
                 end
             end
         end
 
         ap_list = results
-        -- Sort by RSSI descending
         table.sort(ap_list, function(a, b) return a.rssi > b.rssi end)
 
         -- Append to CSV log
         local now = meow.millis()
         for _, ap in ipairs(results) do
-            local bssid_str = ap.bssid or "UNKNOWN"
-            local clean_ssid = ap.ssid:gsub("\"", "'")
-            local is_dec = ap.decloaked and "true" or "false"
-            local line = string.format("%d,\"%s\",\"%s\",%d,%d,%s,%s\n",
-                now, bssid_str, clean_ssid, ap.rssi, ap.channel, tostring(ap.encrypted), is_dec)
-            meow.write_file(log_file, line)
-            total_logged = total_logged + 1
+            if ap.rssi >= config.min_rssi then
+                local bssid_str = ap.bssid or "UNKNOWN"
+                local clean_ssid = ap.ssid:gsub("\"", "'")
+                local is_dec = ap.decloaked and "true" or "false"
+                local line = string.format("%d,\"%s\",\"%s\",%d,%d,%s,%s\n",
+                    now, bssid_str, clean_ssid, ap.rssi, ap.channel, tostring(ap.encrypted), is_dec)
+                append_record(config.log_file, line)
+                total_logged = total_logged + 1
+            end
         end
         meow.tone(1400, 30)
     end
@@ -151,11 +207,9 @@ function do_scan()
     draw_hud()
 end
 
--- Initial scan on launch
 do_scan()
 
 function on_loop()
-    -- Quick check on Button B
     if meow.btn("B") or meow.btn(1) then
         if b_hold_start == 0 then
             b_hold_start = meow.millis()
@@ -168,15 +222,13 @@ function on_loop()
         b_hold_start = 0
     end
 
-    -- Manual Trigger via Button A
     if (meow.btn("A") or meow.btn(0)) and not scanning then
         do_scan()
         meow.delay(200)
     end
 
-    -- Background auto-scan interval
     local now = meow.millis()
-    if now - last_scan >= scan_interval and not scanning then
+    if now - last_scan >= config.scan_interval and not scanning then
         last_scan = now
         do_scan()
     end

@@ -1,0 +1,12 @@
+# ========================================================
+# MEOWKit S3 // Network Triage & Latency Auditor Config
+# Used by: /apps/network_triage.lua
+# ========================================================
+# Target HTTP endpoint for latency/health probes
+PROBE_URL=http://1.1.1.1
+
+# Background ping interval in milliseconds
+INTERVAL_MS=3000
+
+# Probe connection timeout in milliseconds
+TIMEOUT_MS=3000

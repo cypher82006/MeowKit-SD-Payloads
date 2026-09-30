@@ -1,0 +1,10 @@
+# ========================================================
+# MEOWKit S3 // Tactical Subnet Calculator Presets
+# Used by: /apps/subnet_calc.lua
+# Format: NAME,IP,CIDR
+# ========================================================
+Standard LAN,192.168.1.1,24
+Security VLAN,192.168.10.1,24
+VPN Overlay,10.8.0.1,24
+Class B Lab,172.16.0.1,16
+Enterprise WAN,10.0.0.1,8

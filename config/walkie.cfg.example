@@ -1,0 +1,18 @@
+# ========================================================
+# MEOWKit S3 // Covert P2P Walkie Terminal Configuration
+# Used by: /apps/walkie_terminal.lua
+# ========================================================
+# Callsign used in heartbeat beacons
+CALLSIGN=OPERATOR
+
+# UDP Listening and Transmit Port
+UDP_PORT=8765
+
+# Broadcast Target IP Address
+BROADCAST_IP=255.255.255.255
+
+# Heartbeat interval in milliseconds (0 to disable)
+BEACON_INTERVAL_MS=10000
+
+# Comma-separated list of quick-reply messages
+QUICK_MESSAGES=[ACK],[STANDBY],[DEPLOYED],[STATUS_OK],[ALERT_LAB],[BEACON_PING]

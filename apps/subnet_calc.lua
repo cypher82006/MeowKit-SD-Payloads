@@ -2,7 +2,8 @@
 -- MEOWKit S3 // Tactical CIDR & Subnet Calculator (Lua 5.4 Edition)
 -- Author: DarkCyfr
 -- Features: IP/CIDR Subnet Math, Network Range, Usable Hosts,
---           Interactive Joystick & Button Preset Cycling
+--           Interactive D-Pad & Button Preset Cycling
+-- Configuration: /config/subnets.cfg (or /subnets.cfg)
 -- ══════════════════════════════════════════════════════════════
 
 local COL_BG     = 0x10A2
@@ -14,19 +15,60 @@ local COL_ORANGE = 0xFD20
 local COL_WHITE  = 0xFFFF
 local COL_MUTED  = 0x8410
 
-local octets = { 192, 168, 87, 1 }
-local prefix = 24
-local cur_octet = 3 -- Default focus on 3rd octet (e.g. .87.)
-local preset_idx = 2
-local b_hold_start = 0
+-- Load presets dynamically from /config/subnets.cfg
+local function load_subnet_presets()
+    local presets = {}
+    local content = (meow.read_file and meow.read_file("/config/subnets.cfg")) or
+                    (meow.read_file and meow.read_file("/subnets.cfg")) or
+                    (meow.read_file and meow.read_file("/config/subnets.cfg.example"))
 
-local PRESETS = {
-    { ip = {192, 168, 86, 1}, pfx = 24, name = "Homelab Core" },
-    { ip = {192, 168, 87, 1}, pfx = 24, name = "Nest Pro Mesh" },
-    { ip = {10, 5, 0, 1},     pfx = 24, name = "WireGuard VPN" },
-    { ip = {172, 16, 0, 1},   pfx = 16, name = "Class B Lab" },
-    { ip = {10, 0, 0, 1},     pfx = 8,  name = "Enterprise DC" }
-}
+    if content then
+        for line in content:gmatch("[^\r\n]+") do
+            line = line:match("^%s*(.-)%s*$")
+            if line ~= "" and not line:match("^[#;]") and not line:match("^%-%-") then
+                local name, ip_str, pfx_str = line:match("^([^,]+),%s*([^,]+),%s*(%d+)")
+                if name and ip_str and pfx_str then
+                    local o1, o2, o3, o4 = ip_str:match("(%d+)%.(%d+)%.(%d+)%.(%d+)")
+                    if o1 and o2 and o3 and o4 then
+                        table.insert(presets, {
+                            name = name:match("^%s*(.-)%s*$"),
+                            ip = { tonumber(o1), tonumber(o2), tonumber(o3), tonumber(o4) },
+                            pfx = tonumber(pfx_str)
+                        })
+                    end
+                end
+            end
+        end
+    end
+
+    if #presets == 0 then
+        presets = {
+            { name = "Standard LAN",   ip = {192, 168, 1, 1},  pfx = 24 },
+            { name = "Security VLAN",  ip = {192, 168, 10, 1}, pfx = 24 },
+            { name = "VPN Overlay",    ip = {10, 8, 0, 1},     pfx = 24 },
+            { name = "Class B Lab",    ip = {172, 16, 0, 1},   pfx = 16 },
+            { name = "Enterprise WAN", ip = {10, 0, 0, 1},     pfx = 8  }
+        }
+        if meow.write_file then
+            local tpl = "# TACTICAL SUBNET CALCULATOR PRESETS\n" ..
+                        "# Format: NAME,IP,CIDR\n" ..
+                        "Standard LAN,192.168.1.1,24\n" ..
+                        "Security VLAN,192.168.10.1,24\n" ..
+                        "VPN Overlay,10.8.0.1,24\n" ..
+                        "Class B Lab,172.16.0.1,16\n" ..
+                        "Enterprise WAN,10.0.0.1,8\n"
+            meow.write_file("/config/subnets.cfg", tpl)
+        end
+    end
+    return presets
+end
+
+local PRESETS = load_subnet_presets()
+local preset_idx = 1
+local octets = { PRESETS[1].ip[1], PRESETS[1].ip[2], PRESETS[1].ip[3], PRESETS[1].ip[4] }
+local prefix = PRESETS[1].pfx
+local cur_octet = 3
+local b_hold_start = 0
 
 -- Bitwise 32-bit math helpers in Lua 5.4
 local function ip_to_u32(o)
@@ -47,6 +89,8 @@ local function draw_calc()
     -- Header
     meow.rect(0, 0, 320, 24, COL_PANEL, true)
     meow.text(8, 4, "[ TACTICAL CIDR / SUBNET CALC ]", COL_LIME)
+    local cur_name = PRESETS[preset_idx] and PRESETS[preset_idx].name or "CUSTOM"
+    meow.text(210, 4, cur_name, COL_CYAN)
 
     local ip_val = ip_to_u32(octets)
     local mask_val = (prefix == 0) and 0 or ((~0 << (32 - prefix)) & 0xFFFFFFFF)
@@ -90,7 +134,7 @@ local function draw_calc()
 
     -- Footer
     meow.rect(0, 216, 320, 24, COL_PANEL, true)
-    meow.text(8, 220, "[^v]Pfx  [<>]Octet  [A]Preset  [Hold B]Exit", COL_WHITE)
+    meow.text(8, 220, "[^v]Pfx [<>]Octet [A]Preset Hold[B]Exit", COL_WHITE)
 end
 
 draw_calc()
